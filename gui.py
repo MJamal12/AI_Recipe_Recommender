@@ -10,6 +10,7 @@ import pandas as pd
 from PIL import Image
 import requests
 from io import BytesIO
+from api_client import SpoonacularAPIError, SpoonacularQuotaExceededError
 
 # Page configuration
 st.set_page_config(
@@ -184,16 +185,27 @@ def main():
         
         if search_button and ingredients_input:
             with st.spinner("🍳 Searching for delicious recipes..."):
-                ingredients = st.session_state.recommender.parse_ingredients(ingredients_input)
-                
-                results = st.session_state.recommender.recommend_by_ingredients(
-                    ingredients=ingredients,
-                    max_results=num_results,
-                    diet=diet,
-                    intolerances=intolerances,
-                    max_time=max_time,
-                    cuisine=cuisine
-                )
+                try:
+                    ingredients = st.session_state.recommender.parse_ingredients(ingredients_input)
+                    
+                    results = st.session_state.recommender.recommend_by_ingredients(
+                        ingredients=ingredients,
+                        max_results=num_results,
+                        diet=diet,
+                        intolerances=intolerances,
+                        max_time=max_time,
+                        cuisine=cuisine
+                    )
+                except SpoonacularQuotaExceededError:
+                    st.error(
+                        "Spoonacular API limit reached. "
+                        "Free plan requests are exhausted for now. "
+                        "Please wait for your quota reset, use a different API key, or upgrade your plan."
+                    )
+                    return
+                except SpoonacularAPIError as e:
+                    st.error(f"API request failed: {e}")
+                    return
                 
                 if results.empty:
                     st.warning("No recipes found. Try different ingredients or filters.")
@@ -225,14 +237,25 @@ def main():
         
         if search_button and query:
             with st.spinner("🍳 Searching for recipes..."):
-                results = st.session_state.recommender.search_recipes_complex(
-                    query=query,
-                    max_results=num_results,
-                    diet=diet,
-                    intolerances=intolerances,
-                    max_time=max_time,
-                    cuisine=cuisine
-                )
+                try:
+                    results = st.session_state.recommender.search_recipes_complex(
+                        query=query,
+                        max_results=num_results,
+                        diet=diet,
+                        intolerances=intolerances,
+                        max_time=max_time,
+                        cuisine=cuisine
+                    )
+                except SpoonacularQuotaExceededError:
+                    st.error(
+                        "Spoonacular API limit reached. "
+                        "Free plan requests are exhausted for now. "
+                        "Please wait for your quota reset, use a different API key, or upgrade your plan."
+                    )
+                    return
+                except SpoonacularAPIError as e:
+                    st.error(f"API request failed: {e}")
+                    return
                 
                 if results.empty:
                     st.warning("No recipes found. Try different keywords or filters.")

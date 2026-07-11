@@ -9,6 +9,14 @@ from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
 
+class SpoonacularAPIError(Exception):
+    """Base exception for Spoonacular API-related errors."""
+
+
+class SpoonacularQuotaExceededError(SpoonacularAPIError):
+    """Raised when API quota is exhausted or rate limit is exceeded."""
+
+
 class SpoonacularAPIClient:
     """Client for interacting with Spoonacular API."""
     
@@ -24,6 +32,23 @@ class SpoonacularAPIClient:
                 "SPOONACULAR_API_KEY not found or not set. "
                 "Please copy .env.example to .env and add your API key."
             )
+
+    def _parse_error_message(self, response: requests.Response) -> str:
+        """Extract a readable error message from Spoonacular responses."""
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                if payload.get('message'):
+                    return str(payload['message'])
+                if payload.get('status'):
+                    return str(payload['status'])
+        except ValueError:
+            pass
+
+        text = response.text.strip()
+        if text:
+            return text[:300]
+        return f"HTTP {response.status_code}"
     
     def search_recipes_by_ingredients(
         self,
@@ -55,12 +80,15 @@ class SpoonacularAPIClient:
         }
         
         try:
-            response = requests.get(endpoint, params=params)
+            response = requests.get(endpoint, params=params, timeout=20)
+            if response.status_code in (402, 429):
+                raise SpoonacularQuotaExceededError(self._parse_error_message(response))
             response.raise_for_status()
             return response.json()
+        except SpoonacularQuotaExceededError:
+            raise
         except requests.exceptions.RequestException as e:
-            print(f"Error searching recipes: {e}")
-            return []
+            raise SpoonacularAPIError(f"Error searching recipes: {e}") from e
     
     def get_recipe_information(
         self,
@@ -85,11 +113,15 @@ class SpoonacularAPIClient:
         }
         
         try:
-            response = requests.get(endpoint, params=params)
+            response = requests.get(endpoint, params=params, timeout=20)
+            if response.status_code in (402, 429):
+                raise SpoonacularQuotaExceededError(self._parse_error_message(response))
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching recipe details: {e}")
+        except SpoonacularQuotaExceededError:
+            raise
+        except requests.exceptions.RequestException:
+            # Keep non-fatal behavior for individual detail fetches.
             return None
     
     def complex_recipe_search(
@@ -136,9 +168,12 @@ class SpoonacularAPIClient:
             params['maxReadyTime'] = max_ready_time
         
         try:
-            response = requests.get(endpoint, params=params)
+            response = requests.get(endpoint, params=params, timeout=20)
+            if response.status_code in (402, 429):
+                raise SpoonacularQuotaExceededError(self._parse_error_message(response))
             response.raise_for_status()
             return response.json().get('results', [])
+        except SpoonacularQuotaExceededError:
+            raise
         except requests.exceptions.RequestException as e:
-            print(f"Error performing complex search: {e}")
-            return []
+            raise SpoonacularAPIError(f"Error performing complex search: {e}") from e
