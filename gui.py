@@ -73,6 +73,14 @@ def load_image_from_url(url):
     except:
         return None
 
+def render_image_compat(image):
+    """Render image with compatibility across Streamlit versions."""
+    try:
+        st.image(image, use_container_width=True)
+    except TypeError:
+        # Older Streamlit versions use use_column_width instead.
+        st.image(image, use_column_width=True)
+
 def display_recipe_card(recipe):
     """Display a single recipe in a beautiful card format."""
     col1, col2 = st.columns([1, 2])
@@ -81,7 +89,7 @@ def display_recipe_card(recipe):
         if recipe.get('image'):
             img = load_image_from_url(recipe['image'])
             if img:
-                st.image(img, use_container_width=True)
+                render_image_compat(img)
     
     with col2:
         st.markdown(f"### {recipe['title']}")
