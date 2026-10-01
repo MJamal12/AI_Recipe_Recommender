@@ -16,13 +16,13 @@ Browser
       pantry_web.py    fetches through /api/recipes
         |
 Netlify Function  /api/recipes  (netlify/functions/recipes.mts)
-  - allows two Spoonacular endpoints and nothing else
+  - forwards one Spoonacular search and nothing else, with validated filters
   - adds SPOONACULAR_API_KEY server side, so the key never reaches the browser
   - caches identical searches at Netlify's CDN for 24 hours
 ```
 
 - **One engine, two front ends.** `recipe_core.py` has no network or file I/O. The command line app (`main.py`) and the web app both import it.
-- **2 API calls per search.** The first version made one detail request per recipe, about 21 calls per search against a 150 per day free quota. Details are now fetched with a single `informationBulk` call.
+- **One API call per search.** The first version made one detail request per recipe, about 21 calls per search. A single `complexSearch` call (with `fillIngredients` and `addRecipeInformation`) now returns the matches, what each recipe still needs, and its details, for about 2 Spoonacular points. Diet, time and cuisine filters are applied by Spoonacular before results come back.
 - **Ranking.** Most of your ingredients used first, then fewest missing, then quickest. Having 4 of 6 ingredients beats a "perfect" match on one ingredient that needs 9 more.
 
 ## Project layout
@@ -92,7 +92,7 @@ Once the site is linked to this GitHub repo, `git push` to `main` deploys.
 
 ## API limits
 
-The Spoonacular free tier allows 150 points per day. When it runs out, the site says so and explains that it resets at midnight UTC. Searches people have already made keep working from the CDN cache.
+The Spoonacular free tier allows 50 points per day, which is roughly 25 new searches. When it runs out, the site says so and explains that it resets at midnight UTC. Searches people have already made keep working from the CDN cache.
 
 ## License
 

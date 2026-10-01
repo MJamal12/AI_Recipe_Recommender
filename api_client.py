@@ -50,108 +50,51 @@ class SpoonacularAPIClient:
             return text[:300]
         return f"HTTP {response.status_code}"
     
-    def search_recipes_by_ingredients(
+    def search_by_ingredients(
         self,
         ingredients: List[str],
-        number: int = 10,
-        ranking: int = 1,
-        ignore_pantry: bool = True
+        number: int = 20,
+        filters: Optional[Dict[str, str]] = None
     ) -> List[Dict]:
         """
-        Search for recipes based on available ingredients.
-        
+        Find recipes that use your ingredients, in a single request.
+
+        complexSearch with fillIngredients and addRecipeInformation returns the
+        used / missing ingredients and the recipe details together, about 2
+        points per search. The old findByIngredients + per-recipe details
+        approach cost ~13 points, against a 50 point daily free quota.
+
         Args:
-            ingredients: List of ingredients to search with
-            number: Number of results to return (default: 10)
-            ranking: 1=maximize used ingredients, 2=minimize missing ingredients
-            ignore_pantry: Whether to ignore typical pantry items
-            
+            ingredients: Ingredients you have
+            number: Number of candidates to return
+            filters: Extra Spoonacular params from recipe_core.search_filters
+
         Returns:
             List of recipe dictionaries
         """
-        endpoint = f"{self.BASE_URL}/recipes/findByIngredients"
-        
+        endpoint = f"{self.BASE_URL}/recipes/complexSearch"
+
         params = {
             'apiKey': self.api_key,
-            'ingredients': ','.join(ingredients),
+            'includeIngredients': ','.join(ingredients),
             'number': number,
-            'ranking': ranking,
-            'ignorePantry': str(ignore_pantry).lower()
+            'sort': 'max-used-ingredients',
+            'fillIngredients': 'true',
+            'addRecipeInformation': 'true',
+            'ignorePantry': 'true',
+            **(filters or {})
         }
-        
+
         try:
             response = requests.get(endpoint, params=params, timeout=20)
             if response.status_code in (402, 429):
                 raise SpoonacularQuotaExceededError(self._parse_error_message(response))
             response.raise_for_status()
-            return response.json()
+            return response.json().get('results', [])
         except SpoonacularQuotaExceededError:
             raise
         except requests.exceptions.RequestException as e:
             raise SpoonacularAPIError(f"Error searching recipes: {e}") from e
-    
-    def get_recipe_information(
-        self,
-        recipe_id: int,
-        include_nutrition: bool = False
-    ) -> Optional[Dict]:
-        """
-        Get detailed information about a specific recipe.
-        
-        Args:
-            recipe_id: The recipe ID
-            include_nutrition: Whether to include nutritional information
-            
-        Returns:
-            Recipe details dictionary or None if error
-        """
-        endpoint = f"{self.BASE_URL}/recipes/{recipe_id}/information"
-        
-        params = {
-            'apiKey': self.api_key,
-            'includeNutrition': str(include_nutrition).lower()
-        }
-        
-        try:
-            response = requests.get(endpoint, params=params, timeout=20)
-            if response.status_code in (402, 429):
-                raise SpoonacularQuotaExceededError(self._parse_error_message(response))
-            response.raise_for_status()
-            return response.json()
-        except SpoonacularQuotaExceededError:
-            raise
-        except requests.exceptions.RequestException:
-            # Keep non-fatal behavior for individual detail fetches.
-            return None
-    
-    def get_recipe_information_bulk(self, recipe_ids: List[int]) -> List[Dict]:
-        """
-        Get details for many recipes in one request.
-
-        Replaces one get_recipe_information call per recipe, which turned a
-        single search into ~20 API calls against a 150/day free quota.
-        """
-        if not recipe_ids:
-            return []
-
-        endpoint = f"{self.BASE_URL}/recipes/informationBulk"
-
-        params = {
-            'apiKey': self.api_key,
-            'ids': ','.join(str(i) for i in recipe_ids),
-            'includeNutrition': 'false'
-        }
-
-        try:
-            response = requests.get(endpoint, params=params, timeout=20)
-            if response.status_code in (402, 429):
-                raise SpoonacularQuotaExceededError(self._parse_error_message(response))
-            response.raise_for_status()
-            return response.json()
-        except SpoonacularQuotaExceededError:
-            raise
-        except requests.exceptions.RequestException as e:
-            raise SpoonacularAPIError(f"Error fetching recipe details: {e}") from e
 
     def complex_recipe_search(
         self,

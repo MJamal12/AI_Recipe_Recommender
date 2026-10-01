@@ -57,39 +57,69 @@ def clean_names(ingredients: List[Dict]) -> List[str]:
     return names
 
 
-def merge_details(found: List[Dict], details: List[Dict]) -> pd.DataFrame:
-    """
-    Join findByIngredients matches with their full recipe information.
+# Our diet names -> Spoonacular complexSearch parameters. Dairy free is an
+# intolerance there, not a diet.
+_SEARCH_DIETS = {
+    'vegetarian': {'diet': 'vegetarian'},
+    'vegan': {'diet': 'vegan'},
+    'gluten-free': {'diet': 'gluten free'},
+    'gluten free': {'diet': 'gluten free'},
+    'paleo': {'diet': 'paleo'},
+    'ketogenic': {'diet': 'ketogenic'},
+    'dairy-free': {'intolerances': 'dairy'},
+    'dairy free': {'intolerances': 'dairy'},
+}
 
-    `found` carries the match data (used / missing ingredients); `details`
-    carries time, servings, diets and the source link. Recipes missing from
-    `details` are dropped, since they can't be filtered reliably.
+
+def search_filters(
+    diet: Optional[str] = None,
+    max_time: Optional[int] = None,
+    cuisine: Optional[str] = None,
+) -> Dict[str, str]:
     """
-    details_by_id = {d['id']: d for d in details if d and 'id' in d}
+    Filters to send with the search, so Spoonacular narrows results before
+    they come back instead of us discarding most of them afterwards.
+    """
+    params: Dict[str, str] = {}
+    if diet:
+        params.update(_SEARCH_DIETS.get(diet.strip().lower(), {}))
+    if max_time:
+        params['maxReadyTime'] = str(int(max_time))
+    if cuisine:
+        params['cuisine'] = cuisine.strip().lower()
+    return params
+
+
+def rows_from_search(results: List[Dict]) -> pd.DataFrame:
+    """
+    Flatten complexSearch results (with fillIngredients and
+    addRecipeInformation) into one row per recipe.
+
+    One search call carries the match data (used / missing ingredients) and
+    the details (time, servings, diets, source link), so no follow-up
+    lookups are needed.
+    """
     rows = []
-    for match in found:
-        info = details_by_id.get(match['id'])
-        if not info:
-            continue
-        used = match.get('usedIngredients', [])
-        missed = match.get('missedIngredients', [])
+    for recipe in results:
+        used = recipe.get('usedIngredients', [])
+        missed = recipe.get('missedIngredients', [])
         rows.append({
-            'id': match['id'],
-            'title': match['title'],
-            'image': match.get('image') or info.get('image', ''),
-            'used_count': len(used),
-            'missed_count': len(missed),
+            'id': recipe['id'],
+            'title': recipe['title'],
+            'image': recipe.get('image', ''),
+            'used_count': recipe.get('usedIngredientCount', len(used)),
+            'missed_count': recipe.get('missedIngredientCount', len(missed)),
             'used_names': clean_names(used),
             'missed_names': clean_names(missed),
-            'ready_in_minutes': info.get('readyInMinutes'),
-            'servings': info.get('servings'),
-            'source_url': info.get('sourceUrl') or info.get('spoonacularSourceUrl', ''),
-            'diets': info.get('diets', []),
-            'cuisines': info.get('cuisines', []),
-            'vegetarian': bool(info.get('vegetarian')),
-            'vegan': bool(info.get('vegan')),
-            'glutenFree': bool(info.get('glutenFree')),
-            'dairyFree': bool(info.get('dairyFree')),
+            'ready_in_minutes': recipe.get('readyInMinutes'),
+            'servings': recipe.get('servings'),
+            'source_url': recipe.get('sourceUrl') or recipe.get('spoonacularSourceUrl', ''),
+            'diets': recipe.get('diets', []),
+            'cuisines': recipe.get('cuisines', []),
+            'vegetarian': bool(recipe.get('vegetarian')),
+            'vegan': bool(recipe.get('vegan')),
+            'glutenFree': bool(recipe.get('glutenFree')),
+            'dairyFree': bool(recipe.get('dairyFree')),
         })
     return pd.DataFrame(rows)
 
@@ -146,14 +176,22 @@ def rank(df: pd.DataFrame, limit: int = 10) -> pd.DataFrame:
 
 
 def recommend(
-    found: List[Dict],
-    details: List[Dict],
+    results: List[Dict],
     diet: Optional[str] = None,
     max_time: Optional[int] = None,
     cuisine: Optional[str] = None,
     limit: int = 10,
 ) -> pd.DataFrame:
-    """Full pipeline: merge, filter, rank."""
-    df = merge_details(found, details)
-    df = apply_filters(df, diet=diet, max_time=max_time, cuisine=cuisine)
+    """
+    Full pipeline: flatten, filter, rank.
+
+    Spoonacular already applied the filters. Diets it reports as true/false
+    flags and the ready time are checked again here, so a recipe with
+    incomplete data can't slip through. Other diets and cuisine are left to
+    Spoonacular, because its labels differ from the filter names (a "paleo"
+    search returns recipes tagged "paleolithic").
+    """
+    df = rows_from_search(results)
+    flagged = diet if diet and diet.strip().lower() in DIET_FLAGS else None
+    df = apply_filters(df, diet=flagged, max_time=max_time)
     return rank(df, limit=limit)

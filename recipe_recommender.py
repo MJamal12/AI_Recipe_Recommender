@@ -45,7 +45,8 @@ class RecipeRecommender:
         """
         Get recipe recommendations based on ingredients with filters.
 
-        Two API calls total: one match search, one bulk detail lookup.
+        One API call: Spoonacular filters and returns candidates with their
+        details, then recipe_core ranks them.
 
         Args:
             ingredients: List of available ingredients
@@ -58,18 +59,16 @@ class RecipeRecommender:
         Returns:
             DataFrame with recipe recommendations
         """
-        found = self.api_client.search_recipes_by_ingredients(
+        results = self.api_client.search_by_ingredients(
             ingredients=ingredients,
-            number=max_results * 2  # Get more to filter
+            number=max_results * 2,  # Get more to rank
+            filters=recipe_core.search_filters(diet, max_time, cuisine)
         )
-        if not found:
+        if not results:
             return pd.DataFrame()
 
-        details = self.api_client.get_recipe_information_bulk([r['id'] for r in found])
-
         return recipe_core.recommend(
-            found,
-            details,
+            results,
             diet=diet,
             max_time=max_time,
             cuisine=cuisine,

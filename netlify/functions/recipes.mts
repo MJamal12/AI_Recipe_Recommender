@@ -1,12 +1,15 @@
 // Thin proxy to Spoonacular. Exists only so the API key never reaches the
 // browser; all recipe logic lives in Python (recipe_core.py).
 
-const BASE = 'https://api.spoonacular.com/recipes';
+const SEARCH = 'https://api.spoonacular.com/recipes/complexSearch';
 
-const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+const DIETS = new Set(['vegetarian', 'vegan', 'gluten free', 'paleo', 'ketogenic']);
+const INTOLERANCES = new Set(['dairy']);
+
+const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json', ...headers },
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   });
 
 export default async (req: Request) => {
@@ -14,30 +17,41 @@ export default async (req: Request) => {
   if (!key) return json({ message: 'Server is missing its API key.' }, 500);
 
   const params = new URL(req.url).searchParams;
-  const op = params.get('op');
-  let upstream: URL;
+  const ingredients = (params.get('ingredients') ?? '').trim().toLowerCase();
+  if (!ingredients || ingredients.length > 300) {
+    return json({ message: 'Give between 1 and 300 characters of ingredients.' }, 400);
+  }
 
-  if (op === 'find') {
-    const ingredients = (params.get('ingredients') ?? '').trim();
-    const number = Math.min(Math.max(Number(params.get('number')) || 24, 1), 30);
-    if (!ingredients || ingredients.length > 300) {
-      return json({ message: 'Give between 1 and 300 characters of ingredients.' }, 400);
-    }
-    upstream = new URL(`${BASE}/findByIngredients`);
-    upstream.searchParams.set('ingredients', ingredients.toLowerCase());
-    upstream.searchParams.set('number', String(number));
-    upstream.searchParams.set('ranking', '1');
-    upstream.searchParams.set('ignorePantry', 'true');
-  } else if (op === 'bulk') {
-    const ids = params.get('ids') ?? '';
-    if (!/^\d+(,\d+){0,29}$/.test(ids)) {
-      return json({ message: 'ids must be up to 30 comma separated numbers.' }, 400);
-    }
-    upstream = new URL(`${BASE}/informationBulk`);
-    upstream.searchParams.set('ids', ids);
-    upstream.searchParams.set('includeNutrition', 'false');
-  } else {
-    return json({ message: 'Unknown op.' }, 400);
+  // One call returns the matches, what each recipe still needs, and its
+  // details. Roughly 2 points per search instead of ~13 for a search plus a
+  // bulk detail lookup, which matters on a 50 point per day plan.
+  const upstream = new URL(SEARCH);
+  upstream.searchParams.set('includeIngredients', ingredients);
+  upstream.searchParams.set('number', String(Math.min(Math.max(Number(params.get('number')) || 24, 1), 30)));
+  upstream.searchParams.set('sort', 'max-used-ingredients');
+  upstream.searchParams.set('fillIngredients', 'true');
+  upstream.searchParams.set('addRecipeInformation', 'true');
+  upstream.searchParams.set('ignorePantry', 'true');
+
+  const diet = params.get('diet');
+  if (diet) {
+    if (!DIETS.has(diet)) return json({ message: 'Unknown diet.' }, 400);
+    upstream.searchParams.set('diet', diet);
+  }
+  const intolerances = params.get('intolerances');
+  if (intolerances) {
+    if (!INTOLERANCES.has(intolerances)) return json({ message: 'Unknown intolerance.' }, 400);
+    upstream.searchParams.set('intolerances', intolerances);
+  }
+  const maxReadyTime = params.get('maxReadyTime');
+  if (maxReadyTime) {
+    if (!/^\d{1,3}$/.test(maxReadyTime)) return json({ message: 'maxReadyTime must be minutes.' }, 400);
+    upstream.searchParams.set('maxReadyTime', maxReadyTime);
+  }
+  const cuisine = params.get('cuisine');
+  if (cuisine) {
+    if (!/^[a-z ]{1,30}$/.test(cuisine)) return json({ message: 'Unknown cuisine.' }, 400);
+    upstream.searchParams.set('cuisine', cuisine);
   }
 
   upstream.searchParams.set('apiKey', key);
