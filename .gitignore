@@ -36,3 +36,11 @@ wheels/
 # OS
 .DS_Store
 Thumbs.db
+
+# Netlify
+.netlify/
+node_modules/
+
+# Copied from the repo root at build time (see netlify.toml)
+web/py/recipe_core.py
+.claude/

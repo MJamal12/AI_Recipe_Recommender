@@ -124,6 +124,35 @@ class SpoonacularAPIClient:
             # Keep non-fatal behavior for individual detail fetches.
             return None
     
+    def get_recipe_information_bulk(self, recipe_ids: List[int]) -> List[Dict]:
+        """
+        Get details for many recipes in one request.
+
+        Replaces one get_recipe_information call per recipe, which turned a
+        single search into ~20 API calls against a 150/day free quota.
+        """
+        if not recipe_ids:
+            return []
+
+        endpoint = f"{self.BASE_URL}/recipes/informationBulk"
+
+        params = {
+            'apiKey': self.api_key,
+            'ids': ','.join(str(i) for i in recipe_ids),
+            'includeNutrition': 'false'
+        }
+
+        try:
+            response = requests.get(endpoint, params=params, timeout=20)
+            if response.status_code in (402, 429):
+                raise SpoonacularQuotaExceededError(self._parse_error_message(response))
+            response.raise_for_status()
+            return response.json()
+        except SpoonacularQuotaExceededError:
+            raise
+        except requests.exceptions.RequestException as e:
+            raise SpoonacularAPIError(f"Error fetching recipe details: {e}") from e
+
     def complex_recipe_search(
         self,
         query: Optional[str] = None,

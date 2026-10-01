@@ -1,0 +1,21 @@
+[build]
+  publish = "web"
+  # recipe_core.py lives at the repo root so the CLI can import it.
+  # Copy it into the site so the browser runs the exact same file.
+  command = "cp recipe_core.py web/py/recipe_core.py"
+
+[functions]
+  directory = "netlify/functions"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/py/*"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=0, must-revalidate"

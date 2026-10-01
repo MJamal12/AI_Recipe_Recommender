@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pantry: AI Recipe Recommender</title>
+  <meta name="description" content="Tell Pantry what's in your fridge and get recipes ranked by what you can cook right now.">
+  <meta name="theme-color" content="#FBF6EC" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1C1210" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://ai-recipe-recommender-mj.netlify.app/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Pantry: what can you cook tonight?">
+  <meta property="og:description" content="Recipes ranked by the ingredients you already have, plus exactly what you'd still need to buy.">
+  <meta property="og:url" content="https://ai-recipe-recommender-mj.netlify.app/">
+  <meta property="og:image" content="https://ai-recipe-recommender-mj.netlify.app/img/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Bodoni:ital,wght@0,500;0,700;1,500&family=Public+Sans:wght@400;600&display=swap">
+  <link rel="stylesheet" href="/css/main.css">
+  <script src="/js/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#search">Skip to the search</a>
+
+  <svg width="0" height="0" class="sprite" aria-hidden="true">
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-plate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+  </svg>
+
+  <header class="masthead wrap">
+    <a class="wordmark" href="/" aria-label="Pantry, home">Pantry</a>
+    <p class="masthead__line">AI Recipe Recommender</p>
+  </header>
+
+  <main>
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero__copy">
+        <h1 id="hero-title" class="hero__title">What's in your <em>fridge?</em></h1>
+        <p class="hero__lede">
+          List what you have. Pantry ranks recipes by how much of them you can
+          already make, and tells you exactly what you'd still need to buy.
+        </p>
+      </div>
+
+      <div class="bezel hero__panel">
+        <form id="search" class="search" novalidate>
+          <label class="search__label" for="ingredient-input">Your ingredients</label>
+          <div class="chips" id="chips-box">
+            <ul class="chips__list" id="chips" aria-label="Added ingredients"></ul>
+            <input id="ingredient-input" class="chips__input" type="text"
+                   autocomplete="off" autocapitalize="none" enterkeyhint="enter"
+                   aria-describedby="ingredient-help ingredient-error"
+                   placeholder="chicken, rice, garlic">
+          </div>
+          <p class="search__help" id="ingredient-help">Press Enter or type a comma after each one. Pasting a whole list works too.</p>
+          <p class="search__error" id="ingredient-error" role="alert" hidden></p>
+          <p class="sr-only" id="chip-status" aria-live="polite"></p>
+
+          <div class="starters" role="group" aria-label="Or try a sample fridge">
+            <span class="starters__label">Or try:</span>
+            <button type="button" class="starter" data-fill="chicken, rice, garlic, tomatoes">Weeknight chicken</button>
+            <button type="button" class="starter" data-fill="eggs, spinach, feta, onion">Eggs and greens</button>
+            <button type="button" class="starter" data-fill="pasta, lemon, parmesan, butter">Pasta night</button>
+          </div>
+
+          <details class="refine" id="refine">
+            <summary>
+              <svg class="icon" aria-hidden="true"><use href="#i-sliders"/></svg>
+              Refine <span class="refine__count" id="refine-count"></span>
+            </summary>
+            <div class="refine__grid">
+              <div class="field">
+                <label for="diet">Diet</label>
+                <select id="diet" name="diet">
+                  <option value="">Any</option>
+                  <option value="vegetarian">Vegetarian</option>
+                  <option value="vegan">Vegan</option>
+                  <option value="gluten-free">Gluten free</option>
+                  <option value="dairy-free">Dairy free</option>
+                  <option value="paleo">Paleo</option>
+                  <option value="ketogenic">Ketogenic</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="time">Ready in</label>
+                <select id="time" name="time">
+                  <option value="0">Any time</option>
+                  <option value="15">15 min or less</option>
+                  <option value="30">30 min or less</option>
+                  <option value="45">45 min or less</option>
+                  <option value="60">1 hour or less</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="cuisine">Cuisine</label>
+                <select id="cuisine" name="cuisine">
+                  <option value="">Any</option>
+                  <option>American</option><option>Chinese</option><option>French</option>
+                  <option>Greek</option><option>Indian</option><option>Italian</option>
+                  <option>Japanese</option><option>Korean</option><option>Mediterranean</option>
+                  <option>Mexican</option><option>Middle Eastern</option><option>Spanish</option>
+                  <option>Thai</option><option>Vietnamese</option>
+                </select>
+              </div>
+            </div>
+          </details>
+
+          <button class="cta" id="submit" type="submit">
+            <span class="cta__label">Find recipes</span>
+            <span class="cta__icon" aria-hidden="true"><svg class="icon"><use href="#i-arrow"/></svg></span>
+          </button>
+
+          <p class="runtime" id="runtime" aria-live="polite">
+            <span class="runtime__dot" aria-hidden="true"></span>
+            <span id="runtime-text">Getting ready...</span>
+          </p>
+        </form>
+      </div>
+    </section>
+
+    <section class="results wrap" id="results" aria-labelledby="results-title" hidden>
+      <div class="results__head">
+        <h2 id="results-title" class="section-title" tabindex="-1">Recipes</h2>
+        <p class="results__summary" id="results-summary"></p>
+      </div>
+      <p class="sr-only" id="results-status" role="status"></p>
+      <ol class="cards" id="cards"></ol>
+    </section>
+
+  </main>
+
+  <footer class="footer wrap">
+    <p>Built by <a href="https://malikjamalportfolio.com/">Malik Jamal</a>. Recipe data from Spoonacular.</p>
+  </footer>
+
+  <template id="card-tpl">
+    <li class="card">
+      <a class="card__media" tabindex="-1" aria-hidden="true">
+        <img alt="" width="556" height="370" loading="lazy" decoding="async">
+      </a>
+      <div class="card__body">
+        <p class="card__rank"></p>
+        <h3 class="card__title"><a class="card__link" rel="noopener"></a></h3>
+        <div class="meter" role="img"></div>
+        <p class="card__match"></p>
+        <p class="card__need"></p>
+        <ul class="card__meta">
+          <li class="card__time"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span></span></li>
+          <li class="card__serves"><svg class="icon" aria-hidden="true"><use href="#i-plate"/></svg><span></span></li>
+        </ul>
+        <ul class="card__tags"></ul>
+      </div>
+    </li>
+  </template>
+</body>
+</html>
